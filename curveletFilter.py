@@ -79,7 +79,7 @@ patch_size = 100
 stride_z = 20
 stride_x = 20
 val_split=0.2
-lr = 0.0001
+lr = 0.01
 
 
 train_num = int(patch_num*(1-val_split))

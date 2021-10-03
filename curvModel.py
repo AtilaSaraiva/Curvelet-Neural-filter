@@ -5,9 +5,11 @@ from keras.models import *
 
 def curvDomainFilter(pretrained_weights = None, input_size = (512,1), learningRate=0.5e-4):
     inputs = Input(input_size)
+    # conv3 = Conv1D(32, 1, activation = 'linear', padding = 'same', kernel_initializer = 'he_normal')(inputs)
     conv1 = Conv1D(32, 1, activation = 'tanh', padding = 'same', kernel_initializer = 'he_normal')(inputs)
-    conv2 = Conv1D(32, 1, activation = 'tanh', padding = 'same', kernel_initializer = 'he_normal')(conv1)
-    conv3 = Conv1D(1, 1, activation = 'linear', padding = 'same', kernel_initializer = 'he_normal')(conv2)
+    conv3 = Conv1D(1, 1, activation = 'linear', padding = 'same', kernel_initializer = 'he_normal')(conv1)
+    # conv2 = Conv1D(32, 1, activation = 'tanh', padding = 'same', kernel_initializer = 'he_normal')(conv1)
+    # conv3 = Conv1D(1, 1, activation = 'linear', padding = 'same', kernel_initializer = 'he_normal')(conv2)
 
     model = Model(inputs = inputs, outputs = conv3)
 
