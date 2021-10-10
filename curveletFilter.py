@@ -8,6 +8,7 @@ import pylops
 import sys
 from tile_dataset import tile, merge
 from curvModel import curvDomainFilter
+from listToCurv import *
 
 from sklearn.preprocessing import StandardScaler, RobustScaler
 
@@ -57,7 +58,6 @@ def read_rsf (tag):
 
     return fileArray, geometry
 
-
 param = m8r.Par()
 
 m1 = param.string("m1")
@@ -81,69 +81,177 @@ stride_x = 20
 val_split=0.2
 lr = 0.01
 
+X, Y = extract_patches(norm_remigratedImg, norm_migratedImg, patch_num, patch_size)
 
-train_num = int(patch_num*(1-val_split))
-val_num = int(patch_num*val_split)
-# tiles_migratedImg = tile(norm_migratedImg, patch_size, stride_z, stride_x)
-# tiles_remigratedImg = tile(norm_remigratedImg, patch_size, stride_z, stride_x)
-X_train, Y_train = extract_patches(norm_remigratedImg, norm_migratedImg, train_num, patch_size)
-X_val, Y_val     = extract_patches(norm_remigratedImg, norm_migratedImg, val_num, patch_size)
+nbscales=6
+nbangles_coarse=16
+DCT = FDCT2D((patch_size, patch_size), nbscales=nbscales, nbangles_coarse=nbangles_coarse)
 
+c_X = DCT * X[0,:,:,0].ravel()
+cr_X = DCT.struct(c_X)
 
-DCT = FDCT2D((patch_size, patch_size), nbscales=6)
-teste = np.ones((patch_size, patch_size))
-testeC = DCT * teste.ravel()
-curvDomainSize = testeC.shape[0]
+inputDoidao, inputPhase, _, shapes = curvToListPatch_prepare(cr_X, patch_num)
+outputDoidao, outputPhase, _, _ = curvToListPatch_prepare(cr_X, patch_num)
 
-X_trainCurv = np.zeros((train_num,curvDomainSize,1))
-Y_trainCurv = np.zeros((train_num,curvDomainSize,1))
-X_valCurv   = np.zeros((val_num,curvDomainSize,1))
-Y_valCurv   = np.zeros((val_num,curvDomainSize,1))
+for patch in range(len(inputDoidao)):
+    curvAux = DCT * X[patch,:,:,0].ravel()
+    curvAux = DCT.struct(curvAux)
+    curvToListPatch(curvAux,inputDoidao,inputPhase,patch)
 
-model = curvDomainFilter(input_size = (curvDomainSize,1), learningRate = lr)
-
-for patch in range(train_num):
-    X_trainCurv[patch,:,0] = np.abs(DCT * X_train[patch,:,:,0].ravel())
-    Y_trainCurv[patch,:,0] = np.abs(DCT * Y_train[patch,:,:,0].ravel())
-for patch in range(val_num):
-    X_valCurv[patch,:,0]   = np.abs(DCT * X_val[patch,:,:,0].ravel())
-    Y_valCurv[patch,:,0]   = np.abs(DCT * Y_val[patch,:,:,0].ravel())
+for patch in range(len(outputDoidao)):
+    curvAux = DCT * Y[patch,:,:,0].ravel()
+    curvAux = DCT.struct(curvAux)
+    curvToListPatch(curvAux,inputDoidao,outputPhase,patch)
 
 
-epochs = 10
-history = model.fit(X_trainCurv, Y_trainCurv,
-					epochs=epochs,
-					batch_size=10,
-					validation_data=(X_valCurv, Y_valCurv))
 
+# contador = 0
+# shapes = []
+# for s in range(len(cr_X)):
+    # for w in range(len(cr_X[s])):
+        # shapes.append((*cr_X[s][w].shape,1))
+
+# inputDoidao  = [np.empty((patch_num,*shape),dtype = np.float32) for shape in shapes]
+# outputDoidao = [np.empty((patch_num,*shape),dtype = np.float32) for shape in shapes]
+
+# for patch in range(len(inputDoidao)):
+    # contador = 0
+    # curvAux = DCT * X[patch,:,:,0].ravel()
+    # curvAux = DCT.struct(curvAux)
+    # for s in range(len(curvAux)):
+        # for w in range(len(curvAux[s])):
+            # inputDoidao[contador][patch,:,:,0] = np.abs(curvAux[s][w])
+            # contador += 1
+
+# for patch in range(len(outputDoidao)):
+    # contador = 0
+    # curvAux = DCT * Y[patch,:,:,0].ravel()
+    # curvAux = DCT.struct(curvAux)
+    # for s in range(len(curvAux)):
+        # for w in range(len(curvAux[s])):
+            # outputDoidao[contador][patch,:,:,0] = np.abs(curvAux[s][w])
+            # contador += 1
+
+model =  curvDomainFilter(shapes, learningRate = lr)
+history = model.fit(inputDoidao, outputDoidao,
+                    epochs=6,
+                    validation_split=0.2)
 
 # serialize weights to HDF5
-model.save_weights(f"weights/curvFilter_weights_lr_{lr}_epoch_{epochs}_{tag}.h5")
+model.save_weights(f"weights/curvFilter_weights_lr_{lr}_{tag}.h5")
 print("Saved model weights to disk.")
 
 # Save entire model (HDF5)
-model.save(f"weights/curvFilter_lr_{lr}_epoch_{epochs}_{tag}.h5")
+model.save(f"weights/curvFilter_lr_{lr}_{tag}.h5")
 print("Saved model to disk.")
 
+# ===============================================================
+    # contador = 0
+    # for s in range(len(X_trainCurv_reshape)):
+        # for w in range(len(X_trainCurv_reshape[s])):
+            # listaJanelas.append(X_trainCurv_reshape[s][w])
+            # contador+=1
 
-    # # treshHold = 1e-5
 
-    # filtr = m1Curv * m2Curv.conj() / (m2Curv.conj() * m2Curv)
-    # resultCurv = np.abs(filtr) * m1Curv
-    # # resultCurv[np.abs(resultCurv) < treshHold] = treshHold
-    # result = DCT.H * resultCurv
-    # result = result.reshape((patch_size, patch_size))
-    # tiles_results[patch,:,:,0] = np.real(result)
 
-    # # result = DCT.H * m1Curv
-    # # result = result.reshape((geometry.nz, geometry.nx))
-    # # result = np.real(result)
 
-# result = merge(tiles_results, geometry.nz, geometry.nx, patch_size, stride_z, stride_x)
+# train_num = int(patch_num*(1-val_split))
+# val_num = int(patch_num*val_split)
+# X_train, Y_train = extract_patches(norm_remigratedImg, norm_migratedImg, train_num, patch_size)
+# X_val, Y_val     = extract_patches(norm_remigratedImg, norm_migratedImg, val_num, patch_size)
 
-# FfilteredImage = m8r.Output()
-# FfilteredImage.put("d1",geometry.dz)
-# FfilteredImage.put("d2",geometry.dx)
-# FfilteredImage.put("n1",geometry.nz)
-# FfilteredImage.put("n2",geometry.nx)
-# FfilteredImage.write(result.T)
+
+# nbscales=6
+# nbangles_coarse=16
+# DCT = FDCT2D((patch_size, patch_size), nbscales=nbscales, nbangles_coarse=nbangles_coarse)
+# teste = np.ones((patch_size, patch_size))
+# testeC = DCT * teste.ravel()
+# curvDomainSize = testeC.shape[0]
+
+# X_trainCurv = np.zeros((train_num,curvDomainSize,1))
+# Y_trainCurv = np.zeros((train_num,curvDomainSize,1))
+# X_valCurv   = np.zeros((val_num,curvDomainSize,1))
+# Y_valCurv   = np.zeros((val_num,curvDomainSize,1))
+
+# model = curvDomainFilter(input_size = (curvDomainSize,1), learningRate = lr)
+
+# # for patch in range(train_num):
+    # # X_trainCurv[patch,:,0] = np.abs(DCT * X_train[patch,:,:,0].ravel())
+    # # Y_trainCurv[patch,:,0] = np.abs(DCT * Y_train[patch,:,:,0].ravel())
+# # for patch in range(val_num):
+    # # X_valCurv[patch,:,0]   = np.abs(DCT * X_val[patch,:,:,0].ravel())
+    # # Y_valCurv[patch,:,0]   = np.abs(DCT * Y_val[patch,:,:,0].ravel())
+
+# X_trainCurv  = []
+# for patch in range(train_num):
+    # X_trainCurv[patch,:,0] = DCT * X_train[patch,:,:,0].ravel()
+    # Y_trainCurv[patch,:,0] = DCT * Y_train[patch,:,:,0].ravel()
+    # X_trainCurv_reshape = DCT.struct(X_trainCurv[patch,:,0])
+
+    # listaJanelas = []
+
+    # contador = 0
+    # for s in range(len(X_trainCurv_reshape)):
+        # for w in range(len(X_trainCurv_reshape[s])):
+            # listaJanelas.append(X_trainCurv_reshape[s][w])
+            # contador+=1
+
+    # print(contador)
+    # listaPatches.append(listaJanelas)
+
+# 0,1
+# 1,8
+# 2,16
+# 3,32
+# 4,64
+
+
+# epochs = 10
+# history = model.fit(X_trainCurv, Y_trainCurv,
+                    # epochs=epochs,
+                    # batch_size=10,
+                    # validation_data=(X_valCurv, Y_valCurv))
+
+
+# # serialize weights to HDF5
+# model.save_weights(f"weights/curvFilter_weights_lr_{lr}_epoch_{epochs}_{tag}.h5")
+# print("Saved model weights to disk.")
+
+# # Save entire model (HDF5)
+# model.save(f"weights/curvFilter_lr_{lr}_epoch_{epochs}_{tag}.h5")
+# print("Saved model to disk.")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# inputDoidao, nbangles, phase = curvToList(cr_X)
+# testeC = listToCurv(inputDoidao,nbangles,phase)
+# testeC = DCT.vect(testeC)
+
+# for i in range(cr_X[s][w].shape[0]):
+    # for j in range(cr_X[s][w].shape[1]):
+        # print(cr_X[s][w][i,j],testeC[s][w][i,j])
+
+
+# for s in range(len(cr_X)):
+    # for w in range(len(cr_X[s])):
+        # # print(cr_X[s][w].shape,testeC[s][w].shape)
+        # # print(type(cr_X[s][w]),type(testeC[s][w]))
+        # print(cr_X[s][w]-testeC[s][w])
+        # # print(inputDoidao[contador])
+        # contador+=1
+
+# for input,shape in zip(inputDoidao,shapes):
+    # print(input.shape, shape)
