@@ -1,4 +1,8 @@
 import numpy as np
+def threshold(arr,thresh):
+    arr[arr < thresh] = 0
+    return arr
+
 def curvToList(curvArray):
     shapes = []
     for s in range(len(curvArray)):
@@ -11,7 +15,7 @@ def curvToList(curvArray):
     for s in range(len(curvArray)):
         nbangles.append(len(curvArray[s]))
         for w in range(len(curvArray[s])):
-            inputDoidao[contador][0,:,:,0] = np.abs(curvArray[s][w])
+            inputDoidao[contador][0,:,:,0] = threshold(np.abs(curvArray[s][w]),1e-6)
             phase[contador][:,:]           = np.angle(curvArray[s][w])
             contador += 1
 

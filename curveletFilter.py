@@ -9,9 +9,28 @@ import sys
 from tile_dataset import tile, merge
 from curvModel import curvDomainFilter
 from listToCurv import *
+import json
 
 from sklearn.preprocessing import StandardScaler, RobustScaler
 
+def scaleThat(inputDoidao):
+    scales = []
+    for i in range(len(inputDoidao)):
+        scales.append(RobustScaler())
+        inputDoidao[i] = scales[i].fit_transform(inputDoidao[i].reshape(-1,inputDoidao[i].shape[-1])).reshape(inputDoidao[i].shape)
+    return scales
+
+def ithasnan(arr):
+    for element in arr:
+        isnan = np.isnan(element)
+        for _, val in np.ndenumerate(isnan):
+            if val:
+                return val
+    return False
+
+def threshold(arr,thresh):
+    arr[arr < thresh] = 0
+    return arr
 
 def extract_patches(data, mask, patch_num, patch_size):
 
@@ -29,7 +48,6 @@ def extract_patches(data, mask, patch_num, patch_size):
         # Extract data and mask patch around point
         X[n,:,:,0] = data[z_n-patch_size//2:z_n+patch_size//2,x_n-patch_size//2:x_n+patch_size//2]
         Y[n,:,:,0] = mask[z_n-patch_size//2:z_n+patch_size//2,x_n-patch_size//2:x_n+patch_size//2]
-
 
     return X, Y
 
@@ -65,76 +83,73 @@ migratedImg, geometry = read_rsf(m1)
 m2 = param.string("m2")
 tag = param.string("tag")
 remigratedImg, geometry = read_rsf(m2)
+experimentParam = param.string("param")
 
-migScaleModel = RobustScaler()
-migScaleModel.fit(migratedImg)
-norm_migratedImg = migScaleModel.transform(migratedImg)
+with open(experimentParam,'r') as arq:
+    par = json.loads(arq.read())
 
-remigScaleModel = RobustScaler()
-remigScaleModel.fit(remigratedImg)
-norm_remigratedImg = remigScaleModel.transform(remigratedImg)
+patch_num       = par['patch_num']
+patch_size      = par['patch_size']
+stride_z        = par['stride_z']
+stride_x        = par['stride_x']
+val_split       = par['val_split']
+lr              = par['lr']
+nbscales        = par['nbscales']
+nbangles_coarse = par['nbangles_coarse']
 
-patch_num = 1000
-patch_size = 100
-stride_z = 20
-stride_x = 20
-val_split=0.2
-lr = 0.01
+# patch_num = 400
+# patch_size = 50
+# stride_z = 20
+# stride_x = 20
+# val_split=0.2
+# lr = 0.01
+# nbscales=3
+# nbangles_coarse=16
 
-X, Y = extract_patches(norm_remigratedImg, norm_migratedImg, patch_num, patch_size)
+X, Y = extract_patches(remigratedImg, migratedImg, patch_num, patch_size)
 
-nbscales=6
-nbangles_coarse=16
 DCT = FDCT2D((patch_size, patch_size), nbscales=nbscales, nbangles_coarse=nbangles_coarse)
 
 c_X = DCT * X[0,:,:,0].ravel()
 cr_X = DCT.struct(c_X)
 
-inputDoidao, inputPhase, _, shapes = curvToListPatch_prepare(cr_X, patch_num)
-outputDoidao, outputPhase, _, _ = curvToListPatch_prepare(cr_X, patch_num)
 
-for patch in range(len(inputDoidao)):
+
+
+contador = 0
+shapes = []
+for s in range(len(cr_X)):
+    for w in range(len(cr_X[s])):
+        shapes.append((*cr_X[s][w].shape,1))
+
+inputDoidao  = [np.empty((patch_num,*shape),dtype = np.float32) for shape in shapes]
+outputDoidao = [np.empty((patch_num,*shape),dtype = np.float32) for shape in shapes]
+
+for patch in range(patch_num):
+    contador = 0
     curvAux = DCT * X[patch,:,:,0].ravel()
     curvAux = DCT.struct(curvAux)
-    curvToListPatch(curvAux,inputDoidao,inputPhase,patch)
+    for s in range(len(curvAux)):
+        for w in range(len(curvAux[s])):
+            inputDoidao[contador][patch,:,:,0] = threshold(np.abs(curvAux[s][w]),1e-6)
+            contador += 1
 
-for patch in range(len(outputDoidao)):
+for patch in range(patch_num):
+    contador = 0
     curvAux = DCT * Y[patch,:,:,0].ravel()
     curvAux = DCT.struct(curvAux)
-    curvToListPatch(curvAux,inputDoidao,outputPhase,patch)
+    for s in range(len(curvAux)):
+        for w in range(len(curvAux[s])):
+            outputDoidao[contador][patch,:,:,0] = threshold(np.abs(curvAux[s][w]),1e-6)
+            contador += 1
 
 
-
-# contador = 0
-# shapes = []
-# for s in range(len(cr_X)):
-    # for w in range(len(cr_X[s])):
-        # shapes.append((*cr_X[s][w].shape,1))
-
-# inputDoidao  = [np.empty((patch_num,*shape),dtype = np.float32) for shape in shapes]
-# outputDoidao = [np.empty((patch_num,*shape),dtype = np.float32) for shape in shapes]
-
-# for patch in range(len(inputDoidao)):
-    # contador = 0
-    # curvAux = DCT * X[patch,:,:,0].ravel()
-    # curvAux = DCT.struct(curvAux)
-    # for s in range(len(curvAux)):
-        # for w in range(len(curvAux[s])):
-            # inputDoidao[contador][patch,:,:,0] = np.abs(curvAux[s][w])
-            # contador += 1
-
-# for patch in range(len(outputDoidao)):
-    # contador = 0
-    # curvAux = DCT * Y[patch,:,:,0].ravel()
-    # curvAux = DCT.struct(curvAux)
-    # for s in range(len(curvAux)):
-        # for w in range(len(curvAux[s])):
-            # outputDoidao[contador][patch,:,:,0] = np.abs(curvAux[s][w])
-            # contador += 1
+scaleThat(inputDoidao)
+scaleThat(outputDoidao)
 
 model =  curvDomainFilter(shapes, learningRate = lr)
 history = model.fit(inputDoidao, outputDoidao,
-                    epochs=6,
+                    epochs=20,
                     validation_split=0.2)
 
 # serialize weights to HDF5
@@ -255,3 +270,28 @@ print("Saved model to disk.")
 
 # for input,shape in zip(inputDoidao,shapes):
     # print(input.shape, shape)
+
+
+
+# inputDoidao, inputPhase, _, shapes = curvToListPatch_prepare(cr_X, patch_num)
+# outputDoidao, outputPhase, _, _ = curvToListPatch_prepare(cr_X, patch_num)
+
+# for patch in range(len(inputDoidao)):
+    # curvAux = DCT * X[patch,:,:,0].ravel()
+    # curvAux = DCT.struct(curvAux)
+    # curvToListPatch(curvAux,inputDoidao,inputPhase,patch)
+
+# for patch in range(len(outputDoidao)):
+    # curvAux = DCT * Y[patch,:,:,0].ravel()
+    # curvAux = DCT.struct(curvAux)
+    # curvToListPatch(curvAux,inputDoidao,outputPhase,patch)
+
+# print(ithasnan(inputDoidao))
+# scales = []
+# for i in range(len(inputDoidao)):
+    # # print(np.prod(array.shape),array.reshape(-1,array.shape[-1]).shape)
+    # scales.append(RobustScaler())
+    # inputDoidao[i] = scales[i].fit_transform(inputDoidao[i].reshape(-1,inputDoidao[i].shape[-1])).reshape(inputDoidao[i].shape)
+    # # print(scales[i].fit_transform(inputDoidao[i].reshape(-1,inputDoidao[i].shape[-1])).reshape(inputDoidao[i].shape).shape)
+
+# print(ithasnan(inputDoidao))

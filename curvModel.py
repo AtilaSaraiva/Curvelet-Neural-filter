@@ -1,7 +1,12 @@
 import numpy as np
 import keras
-from keras.layers import Conv2D, Dropout
+from keras import regularizers
+import sys
+# from keras.layers import Conv2D, Dropout
+
+from keras.layers import Conv2D, MaxPooling2D, Dropout, concatenate, UpSampling2D, ZeroPadding2D
 from tensorflow.keras.optimizers import Adam
+import tensorflow as tf
 # from keras.optimizers import Adam
 from keras.models import *
 
@@ -14,17 +19,43 @@ def curvDomainFilter(shapes,
     outputs = []
 
     for input in inputs:
-        conv1 = Conv2D(32,
-                       3,
-                       activation='tanh',
-                       padding='same',
-                       kernel_initializer='he_normal')(input)
-        conv3 = Conv2D(1,
-                       3,
-                       activation='linear',
-                       padding='same',
-                       kernel_initializer='he_normal')(conv1)
-        outputs.append(conv3)
+        maxLen = min(input.shape[1],input.shape[2])
+        unetBlocks = min(int(np.log2(maxLen) - 1),3)
+        if unetBlocks >= 1:
+            pool = input
+            featMaps = 32
+            convLayers = []
+            for n in range(unetBlocks):
+                convLayers.append(Conv2D(featMaps,
+                                  3,
+                                  activation='tanh',
+                                  padding='same',
+                                  kernel_initializer='he_normal',
+                                  activity_regularizer=regularizers.l1(1e-4))(pool))
+                pool = MaxPooling2D(pool_size=(2, 2))(convLayers[n])
+                featMaps *= 2
+            merge = pool
+            featMaps = int(featMaps/2)
+            for n in range(unetBlocks):
+                conv = Conv2D(featMaps,
+                              3,
+                              activation='tanh',
+                              padding='same',
+                              kernel_initializer='he_normal',
+                              activity_regularizer=regularizers.l1(1e-4))(merge)
+                up = tf.image.resize(conv,convLayers[-1].shape[1:3].as_list())
+                merge = concatenate([up,convLayers.pop(-1)], axis = 3)
+                featMaps = int(featMaps/2)
+
+            conv = Conv2D(1,
+                          3,
+                          activation='linear',
+                          padding='same',
+                          kernel_initializer='he_normal',
+                          activity_regularizer=regularizers.l1(1e-4))(merge)
+            outputs.append(conv)
+        else:
+            outputs.append(input)
 
     model = Model(inputs=inputs, outputs=outputs)
 

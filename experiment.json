@@ -1,0 +1,10 @@
+{
+    "patch_num": 1000,
+    "patch_size": 50,
+    "stride_z": 20,
+    "stride_x": 20,
+    "val_split": 0.2,
+    "lr": 0.01,
+    "nbscales": 2,
+    "nbangles_coarse": 32
+}
