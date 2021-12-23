@@ -1,0 +1,111 @@
+from rsf.proj import *
+
+def getMaxMin(file):
+    with open(file,"r") as arq:
+        lines = arq.readlines()
+        maxValue = lines[0].replace('\n','')
+        minValue = lines[1].replace('\n','')
+    return maxValue,minValue
+
+maxval, minval = getMaxMin("filtrado-muted.txt")
+
+Result("filtrado-muted",
+        """
+        grey gainpanel=a  title="" maxval=%s minval=%s pclip=98
+        label1="Depth"
+        screenratio=.55
+        polarity=y
+        unit1=m
+        unit2=m
+        label2="Distance"
+        scalebar=y
+        """ % (maxval,minval))
+
+Result("rtmlap-sigsbee-muted",
+        """
+        grey gainpanel=a  title="" maxval=%s minval=%s pclip=98
+        label1="Depth"
+        screenratio=.55
+        polarity=y
+        unit1=m
+        unit2=m
+        label2="Distance"
+        scalebar=y
+        """ % (maxval,minval))
+
+Result("filtrado-window",
+        """
+        grey gainpanel=a  title="" maxval=%s minval=%s
+        label1="Depth"
+        screenratio=.55
+        polarity=y
+        unit1=m
+        unit2=m
+        label2="Distance"
+        scalebar=y
+        """ % (maxval,minval))
+
+Result("rtmlap-sigsbee-window",
+        """
+        grey gainpanel=a  title="" maxval=%s minval=%s
+        label1="Depth"
+        screenratio=.55
+        polarity=y
+        unit1=m
+        unit2=m
+        label2="Distance"
+        scalebar=y
+        """ % (maxval,minval))
+
+maxval, minval = getMaxMin("filtrado-marm.txt")
+
+Result("filtrado-marm",
+        """
+        grey gainpanel=a  title="" maxval=%s minval=%s pclip=98
+        label1="Depth"
+        unit1=m
+        unit2=m
+        screenratio=.55
+        polarity=y
+        label2="Distance"
+        scalebar=y
+        """ % (maxval,minval))
+
+Result("rtmlap-muted",
+        """
+        grey gainpanel=a  title="" maxval=%s minval=%s pclip=98
+        label1="Depth"
+        unit1=m
+        screenratio=.55
+        polarity=y
+        unit2=m
+        polarity=y
+        label2="Distance"
+        scalebar=y
+        """ % (maxval,minval))
+
+Result("filtrado-marm-window",
+        """
+        grey gainpanel=a  title="" maxval=%s minval=%s
+        label1="Depth"
+        polarity=y
+        screenratio=.55
+        unit1=m
+        unit2=m
+        label2="Distance"
+        scalebar=y
+        """ % (maxval,minval))
+
+Result("rtmlap-window",
+        """
+        grey gainpanel=a  title="" maxval=%s minval=%s
+        label1="Depth"
+        screenratio=.55
+        polarity=y
+        unit1=m
+        unit2=m
+        label2="Distance"
+        scalebar=y
+        """ % (maxval,minval))
+
+End()

@@ -9,9 +9,8 @@ import sys
 from keras.models import load_model
 from tile_dataset import tile, merge
 from curvModel import curvDomainFilter
-from sklearn.preprocessing import StandardScaler, RobustScaler
+from sklearn.preprocessing import StandardScaler, RobustScaler, MaxAbsScaler
 from listToCurv import *
-from tqdm import tqdm
 import json
 
 def scaleThat(inputDoidao):
@@ -79,38 +78,39 @@ lr              = par['lr']
 nbscales        = par['nbscales']
 nbangles_coarse = par['nbangles_coarse']
 
-# patch_num = 400
-# patch_size = 50
-# stride_z = 20
-# stride_x = 20
-# val_split=0.2
-# lr = 0.01
-# nbscales=3
-# nbangles_coarse=16
-DCT = FDCT2D((patch_size, patch_size), nbscales=nbscales, nbangles_coarse=nbangles_coarse)
+X = migratedImg
+shape = X.shape
+X = X.reshape(1,*shape,1)
 
-tiles_migratedImg = tile(migratedImg, patch_size, stride_z, stride_x)
-patch_num = tiles_migratedImg.shape[0]
-sys.stderr.write('\n'+str(patch_num)+'\n')
-sys.stderr.flush()
+# DCT = FDCT2D((patch_size, patch_size), nbscales=nbscales, nbangles_coarse=nbangles_coarse)
+DCT = FDCT2D(shape, nbscales=nbscales, nbangles_coarse=nbangles_coarse)
+
+# tiles_migratedImg = tile(migratedImg, patch_size, stride_z, stride_x)
+# patch_num = tiles_migratedImg.shape[0]
+# sys.stderr.write('\n'+str(patch_num)+'\n')
+# sys.stderr.flush()
 
 # c_X = DCT * tiles_migratedImg[0,:,:,0].ravel()
 # cr_X = DCT.struct(c_X)
 
 
-resultTiles = np.zeros(tiles_migratedImg.shape)
-for patch in tqdm(range(patch_num)):
-    rtmCurv                      = DCT * tiles_migratedImg[patch,:,:,0].ravel()
-    rtmCurv                      = DCT.struct(rtmCurv)
-    inputDoidao, nbangles, phase = curvToList(rtmCurv)
-    scales                       = scaleThat(inputDoidao)
-    predictedAmp                 = model.predict(inputDoidao)
-    unscaleThat(predictedAmp, scales)
-    # print(patch,ithasnan(inputDoidao),ithasnan(predictedAmp))
-    resultAux                    = listToCurv(predictedAmp,nbangles,phase)
-    resultAux                    = DCT.vect(resultAux)
-    resultAux                    = np.real(DCT.H * resultAux)
-    resultTiles[patch,:,:,0]     = resultAux.reshape((patch_size,patch_size))
+resultTiles = np.zeros(X.shape)
+# for patch in tqdm(range(patch_num)):
+rtmCurv                      = DCT * X[0,:,:,0].ravel()
+rtmCurv                      = DCT.struct(rtmCurv)
+inputDoidao, nbangles, phase = curvToList(rtmCurv)
+scales                       = scaleThat(inputDoidao)
+predictedAmp                 = model.predict(inputDoidao)
+sys.stderr.write('\n'+"oi"+'\n')
+sys.stderr.flush()
+unscaleThat(predictedAmp, scales)
+sys.stderr.write('\n'+"oi"+'\n')
+sys.stderr.flush()
+# print(patch,ithasnan(inputDoidao),ithasnan(predictedAmp))
+resultAux                    = listToCurv(predictedAmp,nbangles,phase)
+resultAux                    = DCT.vect(resultAux)
+resultAux                    = np.real(DCT.H * resultAux)
+resultTiles[0,:,:,0]     = resultAux.reshape(shape)
 
 # resultTilesCurv = model.predict_on_batch(inputDoidao)
 
@@ -121,7 +121,8 @@ for patch in tqdm(range(patch_num)):
     # resultAux                = DCT.H * resultAux
     # resultTiles[patch,:,:,0] = np.real(resultAux.reshape((patch_size,patch_size)))
 
-result = merge(resultTiles, geometry.nz, geometry.nx, patch_size, stride_z, stride_x)
+# result = merge(resultTiles, geometry.nz, geometry.nx, patch_size, stride_z, stride_x)
+result = resultTiles[0,:,:,0]
 # result = migScaleModel.inverse_transform(norm_result[:,:,0])
 
 FfilteredImage = m8r.Output()
@@ -132,6 +133,8 @@ FfilteredImage.put("n2",geometry.nx)
 FfilteredImage.write(result.T)
 
 
+sys.stderr.write('\n'+"Managed to write to file"+'\n')
+sys.stderr.flush()
 # DCT = FDCT2D((patch_size, patch_size), nbscales=6)
 # teste = np.ones((patch_size, patch_size))
 # testeC = DCT * teste.ravel()

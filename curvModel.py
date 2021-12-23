@@ -23,15 +23,15 @@ def curvDomainFilter(shapes,
         unetBlocks = min(int(np.log2(maxLen) - 1),3)
         if unetBlocks >= 1:
             pool = input
-            featMaps = 32
+            featMaps = 16
             convLayers = []
             for n in range(unetBlocks):
                 convLayers.append(Conv2D(featMaps,
                                   3,
                                   activation='tanh',
                                   padding='same',
-                                  kernel_initializer='he_normal',
-                                  activity_regularizer=regularizers.l1(1e-4))(pool))
+                                  kernel_initializer='he_normal')(pool))
+                                  # activity_regularizer=regularizers.l1(1e-4))(pool))
                 pool = MaxPooling2D(pool_size=(2, 2))(convLayers[n])
                 featMaps *= 2
             merge = pool
@@ -41,8 +41,8 @@ def curvDomainFilter(shapes,
                               3,
                               activation='tanh',
                               padding='same',
-                              kernel_initializer='he_normal',
-                              activity_regularizer=regularizers.l1(1e-4))(merge)
+                              kernel_initializer='he_normal')(merge)
+                              # activity_regularizer=regularizers.l1(1e-4))(merge)
                 up = tf.image.resize(conv,convLayers[-1].shape[1:3].as_list())
                 merge = concatenate([up,convLayers.pop(-1)], axis = 3)
                 featMaps = int(featMaps/2)

@@ -9,7 +9,7 @@ def curvToList(curvArray):
         for w in range(len(curvArray[s])):
             shapes.append((*curvArray[s][w].shape,1))
     inputDoidao = [np.empty((1,*shape),dtype = np.float32) for shape in shapes]
-    phase       = [np.empty(shape[0:2],dtype = np.double) for shape in shapes]
+    phase       = [np.empty(shape[0:2],dtype = np.float32) for shape in shapes]
     nbangles    = []
     contador    = 0
     for s in range(len(curvArray)):
